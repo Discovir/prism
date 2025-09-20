@@ -18,7 +18,7 @@ This is a web application that provides a visualization interface for 2D to 3D c
 │   ├── images/        # Static images
 │   └── js/            # JavaScript files
 ├── templates/         # HTML templates
-└── uploads/          # Directory for uploaded files
+└── uploads/           # Directory for uploaded files
 ```
 
 ## Setup and Usage

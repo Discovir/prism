@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Archaeological 3D Reconstruction</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+    <!-- Add Three.js dependency -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            font-family: 'Times New Roman', serif;
+            background-color: #1c1917;
+            overflow-x: hidden;
+        }
+
+        #app {
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        #app canvas {
+            display: block;
+            position: fixed;
+            z-index: 0;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .ancient-font {
+            font-family: 'Cinzel', serif;
+        }
+
+        .parchment {
+            background: linear-gradient(to right, #e8dfd1 0%, #f5efe6 50%, #e8dfd1 100%);
+            box-shadow: 
+                0 0 20px rgba(0,0,0,0.2),
+                inset 0 0 50px rgba(214, 199, 177, 0.3);
+        }
+
+        .ancient-border {
+            border: 2px solid #876445;
+            box-shadow: 
+                inset 0 0 0 1px #876445,
+                inset 0 0 0 4px #e8dfd1,
+                inset 0 0 0 5px #876445;
+        }
+
+        .upload-zone {
+            background: rgba(232, 223, 209, 0.9);
+            border: 3px dashed #876445;
+            transition: all 0.3s ease;
+        }
+
+        .upload-zone:hover {
+            background: rgba(245, 239, 230, 0.95);
+            border-color: #654321;
+            transform: scale(1.01);
+        }
+
+        .ancient-button {
+            background: linear-gradient(45deg, #876445, #654321);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .ancient-button:hover {
+            background: linear-gradient(45deg, #654321, #876445);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+        }
+
+        .ancient-scrollwork {
+            background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0,0 C5,10 15,10 20,0 C15,10 5,10 0,20 Z' fill='%23876445' fill-opacity='0.1'/%3E%3C/svg%3E");
+        }
+
+        .preview-image {
+            max-height: 200px;
+            object-fit: contain;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .response-success {
+            background: #e8dfd1;
+            border: 1px solid #876445;
+            color: #654321;
+        }
+
+        .response-error {
+            background: #f8e7e7;
+            border: 1px solid #976464;
+            color: #643232;
+        }
+
+        .loading-spinner {
+            background: #e8dfd1;
+            border: 1px solid #876445;
+            color: #654321;
+        }
+
+        .content-container {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <canvas></canvas>
+        <div class="content-container container mx-auto px-4 max-w-4xl py-8" style="margin-top: 130px;">
+            <div class="parchment rounded-lg p-8 ancient-border">
+                <!-- Header -->
+                <div class="text-center mb-8 ancient-scrollwork rounded-lg p-6">
+                    <h1 class="text-4xl font-bold mb-4 ancient-font text-stone-800">
+                        Archaeological Artifact
+                        <br>3D Reconstruction
+                    </h1>
+                    <p class="text-stone-700 text-lg italic">
+                        P.R.I.S.M.
+                    </p>
+                </div>
+
+                <!-- Upload Form -->
+                <form id="uploadForm" class="space-y-6">
+                    <div class="upload-zone rounded-lg p-8 relative">
+                        <input type="file" 
+                               name="image" 
+                               id="image" 
+                               required
+                               accept="image/*"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        
+                        <!-- Default Upload State -->
+                        <div id="uploadDefault" class="space-y-4 text-center">
+                            <img src="/static/images/camera.png" alt="Ancient camera" class="w-16 h-16 mx-auto opacity-70">
+
+                            <div>
+                                <p class="text-lg font-medium text-stone-800">Upload Artifact Images</p>
+                                <p class="text-sm text-stone-600">Drag and drop photographs or click to select</p>
+                            </div>
+                        </div>
+
+                        <!-- Preview State -->
+                        <div id="previewState" class="space-y-4 text-center hidden">
+                            <img id="imagePreview" class="preview-image mx-auto rounded-lg" src="" alt="Preview">
+                            <p id="fileName" class="font-medium text-stone-800"></p>
+                            <button type="button" id="removeImage" class="text-red-800 hover:text-red-600 text-sm underline">
+                                Remove Image
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Convert Button -->
+                    <button type="submit" 
+                            class="ancient-button w-full py-3 px-6 text-white rounded-lg ancient-font text-lg">
+                        Begin 3D Reconstruction
+                    </button>
+                </form>
+                <div id="downloadSection" class="mt-6 hidden">
+                    <button type="button" 
+                            id="downloadObjBtn"
+                            class="ancient-button w-full py-3 px-6 text-white rounded-lg ancient-font text-lg">
+                        Download as OBJ
+                    </button>
+                </div>
+
+                <!-- Response Message -->
+                <div class="mt-6 text-center">
+                    <p id="response" class="inline-block rounded-lg transition-all duration-300"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script async type="module">
+        let currentFileName = '';
+        let processingObj = false;
+
+        // Keep existing particle cursor code...
+        try {
+            // Import threejs-toys with error handling
+            const response = await fetch('https://unpkg.com/threejs-toys@0.0.8/build/threejs-toys.module.cdn.min.js');
+            const moduleText = await response.text();
+            const module = await import(`data:text/javascript;base64,${btoa(moduleText)}`);
+            
+            // Initialize particle cursor with rich brown sandy colors
+            const pc = module.particlesCursor({
+                el: document.getElementById('app'),
+                gpgpuSize: 1024*2,
+                colors: [0x684524, 0x8B5E34],
+                color: 0x4A3219,
+                coordScale: 0.15,
+                noiseIntensity: 0.003,
+                noiseTimeCoef: 0.0005,
+                pointSize: 1.5,
+                pointDecay: 0.0055,
+                sleepRadiusX: 150,
+                sleepRadiusY: 150,
+                sleepTimeCoefX: 0.001,
+                sleepTimeCoefY: 0.002
+            });
+        } catch (error) {
+            console.error('Error loading particle effect:', error);
+        }
+
+        // Keep all existing form functionality code...
+        const uploadDefault = document.getElementById('uploadDefault');
+        const previewState = document.getElementById('previewState');
+        const imagePreview = document.getElementById('imagePreview');
+        const fileName = document.getElementById('fileName');
+        const imageInput = document.getElementById('image');
+        const removeImage = document.getElementById('removeImage');
+        const uploadZone = document.querySelector('.upload-zone');
+
+        function showPreview(file) {
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    fileName.textContent = file.name;
+                    uploadDefault.classList.add('hidden');
+                    previewState.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function resetUpload() {
+            imageInput.value = '';
+            uploadDefault.classList.remove('hidden');
+            previewState.classList.add('hidden');
+            imagePreview.src = '';
+            fileName.textContent = '';
+        }
+
+        // Keep existing event listeners...
+        imageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                showPreview(file);
+            }
+        });
+
+        removeImage.addEventListener('click', resetUpload);
+
+        // Keep drag and drop handlers...
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => {
+                uploadZone.classList.add('border-stone-800');
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadZone.addEventListener(eventName, () => {
+                uploadZone.classList.remove('border-stone-800');
+            });
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                imageInput.files = e.dataTransfer.files;
+                showPreview(file);
+            }
+        });
+
+        // Form submission handler
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const image = document.getElementById('image').files[0];
+            const formData = new FormData();
+            formData.append('image', image);
+
+            const responseEl = document.getElementById('response');
+            const downloadSection = document.getElementById('downloadSection');
+            
+            responseEl.innerHTML = `
+                <div class="loading-spinner inline-flex items-center px-6 py-3 rounded-lg">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Processing artifact reconstruction...</span>
+                </div>`;
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    currentFileName = data.filename;
+                    responseEl.innerHTML = `
+                        <div class="response-success inline-flex items-center px-6 py-3 rounded-lg">
+                            ${data.message}
+                        </div>`;
+                    downloadSection.classList.remove('hidden');
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                responseEl.innerHTML = `
+                    <div class="response-error inline-flex items-center px-6 py-3 rounded-lg">
+                        Reconstruction failed. Please try again.
+                    </div>`;
+                downloadSection.classList.add('hidden');
+            }
+        });
+
+        // Updated OBJ download handler
+        document.getElementById('downloadObjBtn').addEventListener('click', async () => {
+            if (processingObj) return;
+            
+            const responseEl = document.getElementById('response');
+            const downloadBtn = document.getElementById('downloadObjBtn');
+            
+            processingObj = true;
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating OBJ file...`;
+
+            try {
+                // Create a hidden link element for download
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                document.body.appendChild(link);
+
+                // Make request to generate and download OBJ
+                const response = await fetch(`http://127.0.0.1:5000/generate-obj/${currentFileName}`, {
+                    method: 'POST'
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to generate OBJ file');
+                }
+
+                // Get the blob from the response
+                const blob = await response.blob();
+                
+                // Create download URL and trigger download
+                const downloadUrl = window.URL.createObjectURL(blob);
+                link.href = downloadUrl;
+                link.download = `${currentFileName.split('.')[0]}.obj`;
+                link.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(link);
+
+                responseEl.innerHTML = `
+                    <div class="response-success inline-flex items-center px-6 py-3 rounded-lg">
+                        OBJ file generated successfully!
+                    </div>`;
+            } catch (error) {
+                console.error('Error:', error);
+                responseEl.innerHTML = `
+                    <div class="response-error inline-flex items-center px-6 py-3 rounded-lg">
+                        Failed to generate OBJ file. Please try again.
+                    </div>`;
+            } finally {
+                processingObj = false;
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = 'Download as OBJ';
+            }
+        });
+    </script>
+    </body>
+</html>
